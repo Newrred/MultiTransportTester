@@ -24,11 +24,12 @@ Tkinter 기반 경량 도구로, 연결/송수신/프레이밍/주기 송신/로
 
 - Python 3.12
 - Tkinter (GUI)
-  
+
+```text
   redis>=5.0,<6.0
   pyserial>=3.5,<4.0
   python-osc>=1.8,<2.0
-  
+```
 - PyInstaller (배포 빌드)
 
 ## Project Structure
