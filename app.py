@@ -60,6 +60,21 @@ class App(tk.Tk):
         style.configure("TopBar.TFrame", background=p["bg"])
         style.configure("StatusBar.TFrame", background=p["bg"])
 
+        if preset == "dark":
+            section_bg = "#252b33"
+            section_line = "#3f4a58"
+            section_fg = "#eef2f7"
+        else:
+            section_bg = "#f8fafc"
+            section_line = "#d4d9e0"
+            section_fg = p["fg"]
+
+        style.configure("SectionCard.TFrame", background=section_bg, borderwidth=1, relief="solid")
+        style.configure("SectionHeader.TFrame", background=section_bg)
+        style.configure("SectionBody.TFrame", background=section_bg)
+        style.configure("SectionTitle.TLabel", background=section_bg, foreground=section_fg, font=("Segoe UI", 10, "bold"))
+        style.configure("SectionLine.TSeparator", background=section_line)
+
         self._ui_colors = p
 
     def apply_text_widget_colors(self):
@@ -133,7 +148,8 @@ class App(tk.Tk):
         self.fixed_len = tk.StringVar(self, value="16")
         self.send_policy = tk.StringVar(self, value="strict")
         self.pad_byte_hex = tk.StringVar(self, value="00")
-        self.show_utf8 = tk.BooleanVar(self, value=False)
+        self.rx_log_view = tk.StringVar(self, value="hex")
+        self.tx_log_view = tk.StringVar(self, value="hex_utf8")
 
         # --- manual send (shared) ---
         self.manual_is_hex = tk.BooleanVar(self, value=False)
@@ -424,7 +440,7 @@ class App(tk.Tk):
         framing_sec.pack(fill="x", pady=6)
         fs = framing_sec.content
         fs.grid_columnconfigure(1, weight=1)
-        label_w = 18
+        label_w = 12
 
         ttk.Label(fs, text="Mode", width=label_w, anchor="w").grid(row=0, column=0, sticky="w", padx=6, pady=2)
         ttk.Combobox(fs, textvariable=self.frame_mode, values=["delimiter", "fixed"], width=12, state="readonly").grid(
@@ -455,14 +471,22 @@ class App(tk.Tk):
         ttk.Checkbutton(fs, text="Append delimiter when send mode is delimiter", variable=self.append_delim_on_send).grid(
             row=3, column=1, sticky="w", padx=6, pady=2
         )
-        ttk.Checkbutton(fs, text="Show UTF-8 decode in logs", variable=self.show_utf8).grid(row=4, column=1, sticky="w", padx=6, pady=2)
+        ttk.Label(fs, text="RX Log View", width=label_w, anchor="w").grid(row=4, column=0, sticky="w", padx=6, pady=2)
+        ttk.Combobox(fs, textvariable=self.rx_log_view, values=["hex", "utf8", "hex_utf8"], width=12, state="readonly").grid(
+            row=4, column=1, sticky="w", padx=6, pady=2
+        )
+
+        ttk.Label(fs, text="TX Log View", width=label_w, anchor="w").grid(row=5, column=0, sticky="w", padx=6, pady=2)
+        ttk.Combobox(fs, textvariable=self.tx_log_view, values=["hex", "utf8", "hex_utf8"], width=12, state="readonly").grid(
+            row=5, column=1, sticky="w", padx=6, pady=2
+        )
 
         # shared: manual send
         ms_sec = CollapsibleSection(right_inner, "Manual Send", expanded=True)
         ms_sec.pack(fill="x", pady=6)
         ms = ms_sec.content
         ms.grid_columnconfigure(1, weight=1)
-        ttk.Label(ms, text="Payload", width=18, anchor="w").grid(row=0, column=0, sticky="w", padx=6, pady=2)
+        ttk.Label(ms, text="", width=18, anchor="w").grid(row=0, column=0, sticky="w", padx=6, pady=2)
         ttk.Entry(ms, textvariable=self.manual_payload).grid(row=0, column=1, sticky="ew", padx=6, pady=2)
         ctrl_row = ttk.Frame(ms)
         ctrl_row.grid(row=1, column=1, sticky="e", padx=6, pady=(0, 6))
@@ -471,7 +495,7 @@ class App(tk.Tk):
         self.btn_send_now.pack(side="left", padx=(8, 0))
 
         # shared: jobs
-        jobs_sec = CollapsibleSection(right_inner, "Timer (send-only)", expanded=False)
+        jobs_sec = CollapsibleSection(right_inner, "Timer Sender", expanded=False)
         jobs_sec.pack(fill="x", pady=6)
         jobs = jobs_sec.content
 
@@ -514,7 +538,9 @@ class App(tk.Tk):
 
         self._show_transport_panels()
         self._apply_control_states()
-        self.after(120, self._init_pane_layout)
+        self.after_idle(self._init_pane_layout)
+        self.after(250, self._init_pane_layout)
+        self.after(800, self._init_pane_layout)
 
     def _show_transport_panels(self):
         t = self.transport.get().lower().strip() or "tcp"
@@ -552,14 +578,14 @@ class App(tk.Tk):
         ttk.Checkbutton(row, text="Enable", variable=en).pack(side="left")
         ttk.Label(row, text="Interval (s)", width=10, anchor="w").pack(side="left", padx=(12, 2))
         ttk.Entry(row, textvariable=every, width=10).pack(side="left")
-        ttk.Checkbutton(row, text="HEX", variable=is_hex).pack(side="left", padx=(10, 0))
+        #ttk.Checkbutton(row, text="HEX", variable=is_hex).pack(side="left", padx=(10, 0))
         btn = ttk.Button(row, text="Send", command=send_now_cb)
         btn.pack(side="right")
         self.job_send_buttons[name] = btn
 
         payload_row = ttk.Frame(box)
         payload_row.pack(fill="x", padx=6, pady=(0, 6))
-        ttk.Label(payload_row, text="Payload", width=10, anchor="w").pack(side="left")
+        ttk.Checkbutton(payload_row, text="HEX",variable=is_hex, width=10).pack(side="left", padx=(10, 0))
         ttk.Entry(payload_row, textvariable=payload).pack(side="left", fill="x", expand=True)
 
     # ----- config build -----
@@ -576,7 +602,9 @@ class App(tk.Tk):
             fixed_len=self._safe_int(self.fixed_len.get(), 16, "Fixed Len", 1, 10_000_000),
             send_policy=self.send_policy.get(),
             pad_byte_hex=self.pad_byte_hex.get(),
-            show_utf8=bool(self.show_utf8.get()),
+            rx_log_view=self.rx_log_view.get(),
+            tx_log_view=self.tx_log_view.get(),
+            show_utf8=bool(self.rx_log_view.get() != "hex"),
         )
 
         # jobs
@@ -707,12 +735,36 @@ class App(tk.Tk):
         text = "Auto-Scroll: ON" if self._log_auto_scroll else "Auto-Scroll: OFF"
         self.log_auto_scroll_btn.configure(text=text)
 
-    def _init_pane_layout(self):
+    def _init_pane_layout(self, retry: int = 0):
         try:
-            total_w = max(1, int(self.winfo_width()))
-            self.pw.sashpos(0, int(total_w * 0.68))
+            self.update_idletasks()
         except Exception:
             pass
+
+        try:
+            pw_w = int(self.pw.winfo_width()) if hasattr(self, "pw") else 0
+            win_w = int(self.winfo_width())
+            total_w = max(pw_w, win_w)
+
+            # During early startup, width can still be 1 or very small.
+            if total_w < 700:
+                if retry < 20:
+                    self.after(60, lambda: self._init_pane_layout(retry + 1))
+                return
+
+            desired = int(total_w * 0.68)
+            min_left = 480
+            min_right = 320
+
+            if total_w > (min_left + min_right):
+                left = max(min_left, min(desired, total_w - min_right))
+            else:
+                left = max(1, int(total_w * 0.62))
+
+            self.pw.sashpos(0, left)
+        except Exception:
+            if retry < 20:
+                self.after(60, lambda: self._init_pane_layout(retry + 1))
 
     def _apply_log_wrap(self):
         wrap_mode = "word" if self.log_wrap.get() else "none"
@@ -1008,7 +1060,9 @@ class App(tk.Tk):
                 "fixed_len": self.fixed_len.get(),
                 "send_policy": self.send_policy.get(),
                 "pad_byte_hex": self.pad_byte_hex.get(),
-                "show_utf8": self.show_utf8.get(),
+                "rx_log_view": self.rx_log_view.get(),
+                "tx_log_view": self.tx_log_view.get(),
+                "show_utf8": self.rx_log_view.get() != "hex",
                 "manual_is_hex": self.manual_is_hex.get(),
                 "manual_payload": self.manual_payload.get(),
                 "log_wrap": self.log_wrap.get(),
@@ -1057,7 +1111,9 @@ class App(tk.Tk):
             self.fixed_len.set(settings.get("fixed_len", "16"))
             self.send_policy.set(settings.get("send_policy", "strict"))
             self.pad_byte_hex.set(settings.get("pad_byte_hex", "00"))
-            self.show_utf8.set(settings.get("show_utf8", False))
+            legacy_show_utf8 = bool(settings.get("show_utf8", False))
+            self.rx_log_view.set(settings.get("rx_log_view", "hex_utf8" if legacy_show_utf8 else "hex"))
+            self.tx_log_view.set(settings.get("tx_log_view", "hex_utf8" if legacy_show_utf8 else "hex"))
             self.manual_is_hex.set(settings.get("manual_is_hex", False))
             self.manual_payload.set(settings.get("manual_payload", ""))
             self.log_wrap.set(settings.get("log_wrap", False))
@@ -1103,4 +1159,8 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
     App().mainloop()
+
+
+
+
 

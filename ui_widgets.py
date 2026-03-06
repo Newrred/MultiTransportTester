@@ -15,12 +15,17 @@ class CollapsibleSection(ttk.Frame):
     def __init__(self, master, title: str, *, expanded: bool = True):
         super().__init__(master)
 
-        header = ttk.Frame(self)
-        header.pack(fill="x")
-        ttk.Label(header, text=title).pack(side="left", fill="x", expand=True)
+        card = ttk.Frame(self, style="SectionCard.TFrame", padding=(8, 6, 8, 8))
+        card.pack(fill="x")
 
-        self.content = ttk.Frame(self)
-        self.content.pack(fill="x", pady=(4, 0))
+        header = ttk.Frame(card, style="SectionHeader.TFrame")
+        header.pack(fill="x")
+        ttk.Label(header, text=title, style="SectionTitle.TLabel").pack(side="left", fill="x", expand=True)
+
+        ttk.Separator(card, orient="horizontal", style="SectionLine.TSeparator").pack(fill="x", pady=(4, 6))
+
+        self.content = ttk.Frame(card, style="SectionBody.TFrame")
+        self.content.pack(fill="x")
 
 
 class VerticalScrollableFrame(ttk.Frame):

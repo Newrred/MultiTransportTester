@@ -49,9 +49,10 @@ class FrameCfg:
     fixed_len: int = 16
     send_policy: str = "strict"  # "strict" | "pad" | "truncate"
     pad_byte_hex: str = "00"
-    # display
-    show_utf8: bool = False
-
+    # display (show format can be configured separately for RX/TX)
+    rx_log_view: str = "hex"        # "hex" | "utf8" | "hex_utf8"
+    tx_log_view: str = "hex_utf8"   # "hex" | "utf8" | "hex_utf8"
+    show_utf8: bool = False          # legacy fallback for old settings
 
 @dataclass
 class JobCfg:
@@ -555,20 +556,67 @@ class NetEngine:
                 return []
             return split_fixed(conn_buf, n)
         return split_by_delim(conn_buf, self._delim_bytes)
+    def _normalize_log_view(self, mode: str, *, legacy_show_utf8: bool = False) -> str:
+        m = (mode or "").strip().lower().replace(" ", "").replace("+", "_").replace("-", "_")
+        aliases = {
+            "hexutf8": "hex_utf8",
+            "hex_utf8": "hex_utf8",
+            "both": "hex_utf8",
+            "utf": "utf8",
+            "utf_8": "utf8",
+            "utf8": "utf8",
+            "hex": "hex",
+        }
+        normalized = aliases.get(m, "")
+        if normalized in {"hex", "utf8", "hex_utf8"}:
+            return normalized
+        return "hex_utf8" if legacy_show_utf8 else "hex"
 
-    def _format_frame_for_log(self, peer: str, frame: bytes) -> str:
-        total_len = len(frame)
-        preview = frame[:LOG_FRAME_PREVIEW_MAX]
+    def _format_payload_for_log(self, direction: str, peer: str, payload: bytes, view: str) -> str:
+        total_len = len(payload)
+        preview = payload[:LOG_FRAME_PREVIEW_MAX]
+
         hx = binascii.hexlify(preview).decode()
         if total_len > LOG_FRAME_PREVIEW_MAX:
             hx += f"...(+{total_len - LOG_FRAME_PREVIEW_MAX}B)"
 
-        if self.cfg.frame.show_utf8:
-            txt = preview.decode("utf-8", errors="replace")
-            if total_len > LOG_FRAME_PREVIEW_MAX:
-                txt += f"...(+{total_len - LOG_FRAME_PREVIEW_MAX}B)"
-            return f"[rx] {peer} LEN={total_len} HEX={hx} | UTF8='{txt}'"
-        return f"[rx] {peer} LEN={total_len} HEX={hx}"
+        txt = preview.decode("utf-8", errors="replace")
+        if total_len > LOG_FRAME_PREVIEW_MAX:
+            txt += f"...(+{total_len - LOG_FRAME_PREVIEW_MAX}B)"
+
+        if view == "utf8":
+            return f"[{direction}] {peer} LEN={total_len} UTF8='{txt}'"
+        if view == "hex_utf8":
+            return f"[{direction}] {peer} LEN={total_len} HEX={hx} | UTF8='{txt}'"
+        return f"[{direction}] {peer} LEN={total_len} HEX={hx}"
+
+    def _tx_log_peer(self) -> str:
+        t = self.cfg.transport
+        if t == "tcp":
+            if self.cfg.tcp.role == "client":
+                return str(self.stats.peer or f"{self.cfg.tcp.host}:{self.cfg.tcp.port}")
+            return "tcp:server"
+        if t == "udp":
+            return f"{self.cfg.udp.target_host}:{self.cfg.udp.target_port}"
+        if t == "redis":
+            return f"redis:{self.cfg.redis.pub_channel}"
+        if t == "serial":
+            return f"serial:{self.cfg.serial.port}"
+        return t or "-"
+
+    def _format_tx_for_log(self, payload: bytes) -> str:
+        view = self._normalize_log_view(
+            getattr(self.cfg.frame, "tx_log_view", ""),
+            legacy_show_utf8=bool(getattr(self.cfg.frame, "show_utf8", False)),
+        )
+        return self._format_payload_for_log("tx", self._tx_log_peer(), payload, view)
+
+    def _format_frame_for_log(self, peer: str, frame: bytes) -> str:
+        view = self._normalize_log_view(
+            getattr(self.cfg.frame, "rx_log_view", ""),
+            legacy_show_utf8=bool(getattr(self.cfg.frame, "show_utf8", False)),
+        )
+        return self._format_payload_for_log("rx", peer, frame, view)
 
     # ----- Payload build -----
     def _build_payload_bytes(self, payload: str, is_hex: bool) -> bytes:
@@ -630,9 +678,9 @@ class NetEngine:
         if out is None:
             self.log("[tx] strict policy dropped send (fixed length mismatch)")
             return
-
         ok, detail = await self._send_bytes(out)
         if ok:
+            self.log(self._format_tx_for_log(out))
             self.log(f"[tx] sent ({detail})")
         else:
             self.log(f"[tx] failed ({detail})")
@@ -755,9 +803,9 @@ class NetEngine:
                 if out is None:
                     self.log(f"[job:{name}] strict policy dropped send (fixed length mismatch)")
                     continue
-
                 ok, detail = await self._send_bytes(out)
                 if ok:
+                    self.log(self._format_tx_for_log(out))
                     self.log(f"[job:{name}] fired ({detail})")
                 else:
                     self.log(f"[job:{name}] skipped ({detail})")
@@ -1390,3 +1438,7 @@ class NetEngine:
                     self.log(self._format_frame_for_log(peer, fr))
         except asyncio.CancelledError:
             pass
+
+
+
+

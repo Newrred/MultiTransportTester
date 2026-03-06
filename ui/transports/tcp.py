@@ -132,7 +132,7 @@ class TcpTransportUI:
 
         row3 = ttk.Frame(lf)
         row3.pack(fill="x", padx=6, pady=4)
-        ttk.Label(row3, text="Backoff", width=20, anchor="w").pack(side="left")
+        ttk.Label(row3, text="Backoff", width=10, anchor="w").pack(side="left")
         ttk.Label(row3, text="Min").pack(side="left")
         self.ent_backoff_min = ttk.Entry(row3, textvariable=self.backoff_min, width=8)
         self.ent_backoff_min.pack(side="left", padx=(4, 8))
@@ -274,6 +274,15 @@ class TcpTransportUI:
                     self.client_listbox.selection_set(i)
 
     def fill_cfg(self, cfg: AppCfg, safe_int: SafeIntFn, safe_float: SafeFloatFn) -> None:
+        scope = self.server_scope.get()
+        targets = self.get_send_targets()
+
+        # UX fallback: if scope is "selected" but no peer is selected,
+        # use all connected peers to avoid an apparent "server send is broken" state.
+        if scope == "selected" and not targets and self.client_list_items:
+            scope = "all"
+            targets = set(self.client_list_items)
+
         cfg.tcp = TcpCfg(
             role=self.role.get(),
             host=self.host.get().strip() or "127.0.0.1",
@@ -290,8 +299,8 @@ class TcpTransportUI:
                 interval_sec=safe_int(self.ka_intvl.get(), 10, "KA interval", 1, 86400),
                 count=safe_int(self.ka_cnt.get(), 5, "KA count", 1, 50),
             ),
-            server_scope=self.server_scope.get(),
-            server_selected=self.get_send_targets(),
+            server_scope=scope,
+            server_selected=targets,
         )
 
     def can_send(self, stats: Dict[str, Any]) -> bool:
@@ -310,7 +319,9 @@ class TcpTransportUI:
             if clients <= 0:
                 return False
             if self.server_scope.get() == "selected":
-                return len(self.get_selected_peers()) > 0
+                # UX fallback keeps send enabled when clients exist.
+                # Actual cfg build will switch to "all" if no peer is selected.
+                return len(self.get_selected_peers()) > 0 or len(self.client_list_items) > 0
             return True
 
         return False
@@ -342,3 +353,6 @@ class TcpTransportUI:
             self.client_listbox.configure(bg=palette.get("text_bg", "#ffffff"), fg=palette.get("text_fg", "#111111"))
         except Exception:
             pass
+
+
+
