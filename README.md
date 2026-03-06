@@ -1,6 +1,6 @@
-﻿# MultiTransportTester
+﻿# Multi-Transport-Tester
 
-MultiTransportTester is a desktop app for quickly testing TCP, UDP, Redis, and Serial communication from a single UI.
+**Multi-Transport-Tester** is a desktop app for **quickly testing TCP, UDP, Redis, and Serial communication from a single UI**.
 It is built with Tkinter and provides connection controls, send/receive testing, framing options, periodic sending, and log search/navigation.
 
 ## Features

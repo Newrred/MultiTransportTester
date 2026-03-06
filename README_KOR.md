@@ -1,6 +1,6 @@
-﻿# MultiTransportTester
+﻿# Multi-Transport-Tester
 
-TCP / UDP / Redis / Serial 통신을 한 UI에서 빠르게 점검하기 위한 데스크톱 테스트 앱입니다.  
+**TCP / UDP / Redis / Serial** 통신을 한 UI에서 빠르게 점검하기 위한 데스크톱 테스트 앱입니다.  
 Tkinter 기반 경량 도구로, 연결/송수신/프레이밍/주기 송신/로그 검색까지 한 번에 확인할 수 있습니다.
 
 ## Features
