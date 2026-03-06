@@ -20,13 +20,15 @@ Tkinter 기반 경량 도구로, 연결/송수신/프레이밍/주기 송신/로
 - 설정 저장/복원 (`settings.json`)
 - Windows 단일 실행 파일 빌드(PyInstaller)
 
-## Tech Stack
+## Requirements
 
 - Python 3.12
 - Tkinter (GUI)
-- `redis` (Redis transport)
-- `pyserial` (Serial transport)
-- `python-osc` (테스트 스크립트에서 사용)
+  
+  redis>=5.0,<6.0
+  pyserial>=3.5,<4.0
+  python-osc>=1.8,<2.0
+  
 - PyInstaller (배포 빌드)
 
 ## Project Structure
@@ -108,7 +110,7 @@ python -m venv venv
 .\venv\Scripts\python -m PyInstaller --onefile --windowed --name MultiTransportTester app.py --noconfirm --clean
 ```
 
-결과물:
+Result:
 
 - `dist\MultiTransportTester.exe`
 
@@ -117,45 +119,6 @@ python -m venv venv
 ```powershell
 .\venv\Scripts\python -m PyInstaller MultiTransportTester.spec --noconfirm
 ```
-
-## Testing
-
-현재 저장소에는 로컬 실행용 테스트 스크립트가 포함되어 있습니다.  
-(`tests/`는 기본 `.gitignore` 대상이라 GitHub에 올리지 않도록 설정되어 있습니다.)
-
-### Smoke Test
-
-```powershell
-.\venv\Scripts\python tests\smoke_app_runtime.py
-```
-
-- UI 생성/바인딩/검색/설정 저장복원/start-stop 흐름 확인
-
-### Integration Test
-
-```powershell
-.\venv\Scripts\python tests\integration_transports_runtime.py
-```
-
-- TCP/UDP/Redis 실제 송수신 검증
-- Serial은 루프백 포트가 있어야 `PASS`, 없으면 `SKIP`
-
-Serial 루프백 포트 지정 예:
-
-```powershell
-$env:SERIAL_LOOP_PORT="COM5"
-.\venv\Scripts\python tests\integration_transports_runtime.py
-```
-
-### Soak Test (Long Run)
-
-```powershell
-.\venv\Scripts\python tests\soak_runner.py --minutes 10
-```
-
-- 연결/해제 반복
-- 로그 폭주
-- 검색 이동 반복
 
 ## Configuration File (`settings.json`)
 
@@ -168,29 +131,9 @@ $env:SERIAL_LOOP_PORT="COM5"
 
 파일은 프로젝트 루트에 생성됩니다.
 
-## GitHub Upload Guide
-
-현재 `.gitignore`로 아래 항목이 기본 제외됩니다.
-
-- `venv/`, `__pycache__/`
-- `build/`, `dist/`
-- `tests/`
-- `settings.json`
-- IDE/임시 폴더 (`.idea/`, `.vscode/`, `.tmp/`)
-
-즉, 일반적으로 `git add .` 시 실행/개발에 불필요한 산출물은 올라가지 않습니다.  
-단, 과거에 이미 tracked 된 파일은 `git rm --cached`로 추적 해제가 필요합니다.
 
 ## Troubleshooting
 
-- `No Python at ...` 오류
-  - 깨진 venv 또는 권한/경로 문제일 수 있습니다.
-  - venv 재생성:
-    ```powershell
-    rmdir /s /q venv
-    python -m venv venv
-    .\venv\Scripts\pip install -r requirements.txt
-    ```
 
 - Redis `connect failed`
   - Redis 서버 실행 여부, host/port/db/password 확인
